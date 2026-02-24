@@ -23,6 +23,12 @@ const userSchema = new Schema({
     password:{
         type: String
     },
+    age:{
+        type: Number
+    },
+    skills:{
+        type: [String]
+    },
     gender:{
         type: String,
         validate(value){

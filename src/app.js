@@ -66,9 +66,21 @@ app.delete("/user",async(req,res,next) =>{
 })
 
 // Update the user
-app.patch("/user",async(req,res,next) =>{
+app.patch("/user/:userId",async(req,res,next) =>{
   try{
-    const userId = req?.body?.userId;
+    const userId = req?.params?.userId;
+    const data = req?.body
+
+    //Api validation to check only allowed fields are updtated
+    const UPDATE_ALLOWED = ["firstName","lastName","age","skills","gender"];
+    const is_valid_update = Object.keys(data)?.every((k) => UPDATE_ALLOWED?.includes(k));
+    if(!is_valid_update){
+      throw new Error("Update is not allowed!")
+    }
+    if(data?.skills?.length > 5){
+      throw new Error ("Max size for skills is 5")
+    }
+
     //By default runValidators is false, so need to make it true
     const op = await User.findByIdAndUpdate(userId,req?.body,{returnDocument: "after", runValidators: true});
     console.log("Body:",op);
