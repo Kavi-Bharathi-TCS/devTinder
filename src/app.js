@@ -1,12 +1,16 @@
 const express = require("express");
+const bcrypt = require("bcrypt");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 const connectDb = require("./config/database");
 const User = require("./model/user");
 const { validateSignupData } = require("./utils/validation");
-const bcrypt = require("bcrypt");
+const {userAuth} = require("./middlewares/auth")
 
 const app = express();
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.post("/signup", async (req, res) => {
   try {
@@ -25,6 +29,7 @@ app.post("/signup", async (req, res) => {
       emailId,
       password: hashPassword,
     });
+
     await userData.save();
     res.send("Data saved successfully!!");
   } catch (err) {
@@ -32,6 +37,7 @@ app.post("/signup", async (req, res) => {
   }
 });
 
+// Login for the API
 app.post("/login", async (req, res, next) => {
   try {
     const { emailId, password } = req?.body;
@@ -39,20 +45,33 @@ app.post("/login", async (req, res, next) => {
     if (!userData) {
       throw new Error("Invalid Credentials");
     }
-    console.log("We get:",userData);
-    
-    const loginCheck = await bcrypt.compare(password, userData?.password);
-    console.log("Loging:", loginCheck);
+
+    const loginCheck = await userData.validatePassword(password)
 
     if (!loginCheck) {
       throw new Error("Invalid Credentials");
+    } else {
+      const token = await userData.getJwt();
+      
+      // Set expire for cookie
+      res.cookie('token', token, { expires: new Date(Date.now() + 900000), httpOnly: true })
+      res.send("Login success!!");
     }
+  } catch (err) {
+    console.log("Error:", err);
 
-    res.send("Login success!!");
+    res.status(400).send(err.message);
+  }
+});
+
+// Get profile
+app.get("/profile", userAuth, async (req, res, next) => {
+  try {
+    const {user} = req
+   
+    res.send(user);
 
   } catch (err) {
-    console.log("Error:",err);
-    
     res.status(400).send(err.message);
   }
 });
@@ -105,7 +124,7 @@ app.patch("/user/:userId", async (req, res, next) => {
     const userId = req?.params?.userId;
     const data = req?.body;
 
-    //Api validation to check only allowed fields are updtated
+    // Api validation to check only allowed fields are updtated
     const UPDATE_ALLOWED = ["firstName", "lastName", "age", "skills", "gender"];
     const is_valid_update = Object.keys(data)?.every((k) =>
       UPDATE_ALLOWED?.includes(k),
@@ -117,7 +136,7 @@ app.patch("/user/:userId", async (req, res, next) => {
       throw new Error("Max size for skills is 5");
     }
 
-    //By default runValidators is false, so need to make it true
+    // By default runValidators is false, so need to make it true
     const op = await User.findByIdAndUpdate(userId, req?.body, {
       returnDocument: "after",
       runValidators: true,
